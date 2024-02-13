@@ -16,11 +16,11 @@ limitations under the License.
 
 <h1 align="center"> 
 <img src="picture.jpg" width="73" height="114">
-<p> LLM-Adapters</p>
+<p> SIBO</p>
 </h1>
 
 <h3 align="center">
-    <p>LLM-Adapters: An Adapter Family for Parameter-Efficient Fine-Tuning of Large Language Models </p>
+    <p>SIBO: An Adapter Family for Parameter-Efficient Fine-Tuning of Large Language Models </p>
 </h3>
 SIBO is an easy-to-use framework that integrates various adapters into LLMs and can execute adapter-based PEFT methods of LLMs for different tasks. LLM-Adapter is an extension of HuggingFace's PEFT library, many thanks for their amazing work! Please find our paper at this link: https://arxiv.org/abs/2304.01933.
 
@@ -255,4 +255,5 @@ If you use <img src="picture.jpg" width="14px" height="14px"> LLM-Adapters in yo
 ## Acknowledgement
 
 This repo benefits from [PEFT](https://github.com/huggingface/peft), [Adapter-Transformer](https://github.com/adapter-hub/adapter-transformers), [Alpaca-lora](https://github.com/tloen/alpaca-lora). Thanks for their wonderful works. Additionally, we thank DONG Shan and [dream.ai](https://dream.ai/create) for the exceptional logo design, which has added immense value to our project.
+# SIBO
 # SIBO
