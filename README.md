@@ -22,26 +22,15 @@ limitations under the License.
 <h3 align="center">
     <p>LLM-Adapters: An Adapter Family for Parameter-Efficient Fine-Tuning of Large Language Models </p>
 </h3>
-LLM-Adapters is an easy-to-use framework that integrates various adapters into LLMs and can execute adapter-based PEFT methods of LLMs for different tasks. LLM-Adapter is an extension of HuggingFace's PEFT library, many thanks for their amazing work! Please find our paper at this link: https://arxiv.org/abs/2304.01933.
+SIBO is an easy-to-use framework that integrates various adapters into LLMs and can execute adapter-based PEFT methods of LLMs for different tasks. LLM-Adapter is an extension of HuggingFace's PEFT library, many thanks for their amazing work! Please find our paper at this link: https://arxiv.org/abs/2304.01933.
 
-The framework includes state-of-the-art open-access LLMs: LLaMa, OPT, BLOOM, and GPT-J, as well as widely used adapters such as Bottleneck adapters, Parallel adapters, and LoRA.
+The framework includes state-of-the-art open-access LLMs: LLaMa, BLOOM, and GPT-J, as well as widely used adapters such as Bottleneck adapters and LoRA.
 
 Supported Adapters:
 
 1. LoRA: [LORA: LOW-RANK ADAPTATION OF LARGE LANGUAGE MODELS](https://arxiv.org/pdf/2106.09685.pdf)
 2. AdapterH: [Parameter-Efficient Transfer Learning for NLP](https://arxiv.org/pdf/1902.00751.pdf)
-3. AdapterP: [GMAD-X: An Adapter-Based Framework for Multi-Task Cross-Lingual Transfer](https://arxiv.org/pdf/2005.00052.pdf)
-4. Parallel: [TOWARDS A UNIFIED VIEW OF PARAMETER-EFFICIENT TRANSFER LEARNING](https://arxiv.org/pdf/2110.04366.pdf)
-5. Prefix Tuning: [Prefix-Tuning: Optimizing Continuous Prompts for Generation](https://aclanthology.org/2021.acl-long.353/), [P-Tuning v2: Prompt Tuning Can Be Comparable to Fine-tuning Universally Across Scales and Tasks](https://arxiv.org/pdf/2110.07602.pdf)
-6. P-Tuning: [GPT Understands, Too](https://arxiv.org/pdf/2103.10385.pdf)
-7. Prompt Tuning: [The Power of Scale for Parameter-Efficient Prompt Tuning](https://arxiv.org/pdf/2104.08691.pdf) 
 
-## Latest News 🔥🔥
-
-* [2023-07-16] we released commonsense170k dataset and the  The LLaMA-13B-Parallel model outformances ChatGPT on 8 commonsense benchmarks.
-* [2023-04-21] We released math10k dataset and the [LLaMA-13B adapter checkpoints](https://drive.google.com/file/d/1NqUv-Hn_mAkGXsUOqpJKmPKW5Gp8mRlO/view?usp=sharing). The LLaMA-13B-Parallel model achieves **91%** of GPT-3.5 performance!
-* [2023-04-10] We can support GPT-Neo and ChatGLM now!
-* [2023-04-04] [Release code and dataset](https://github.com/AGI-Edgerunners/LLM-Adapters)
 
 ## Special Announcement
 The `math_10k.json` data is collected with the training sets of GSM8K, MAWPS, and AQuA(1000 examples). However, MAWPS consists of AddSub, MultiArith, SingleOp, SingleEq, SimulEq-S, SimulEq-L. Thus, we can't utilize MultiArith, AddSub, and SingleEq as evaluation benchmarks with models trained with `math_10k.json`. We evaluate the PEFT methods on the MAWPS test set instead, and the result table has been updated (The findings in the paper are consistent). Furthermore, two variations of `math_10k.json` have been uploaded, `math_7K.json` where the MAWPS samples have been deleted, and `math_14k.json` where the MAWPS samples have been deleted as well and we combine ChatGPT and GPT-4 rationales. Sincerely apologize for any inconvenience!
@@ -60,7 +49,7 @@ pip install -r requirements.txt
 # export_hf_checkpoint.py
 # export_state_dict_checkpoint.py
 
-export BASE_MODEL=yahma/llama-7b-hf
+export BASE_MODEL=EleutherAI/gpt-j-6b
 ```
 
 Both `finetune.py` and `generate.py` use `--base_model` flag as shown further below.
@@ -75,34 +64,48 @@ Example usage for multiple GPUs:
 
 ```bash
 WORLD_SIZE=2 CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 --master_port=3192 finetune.py \
-  --base_model 'yahma/llama-7b-hf' \
-  --data_path 'math_10k.json' \
-  --output_dir './trained_models/llama-lora' \
+  --base_model EleutherAI/gpt-j-6b \
+  --data_path ./ft-training_set/math_10k.json \
   --batch_size 16 \
   --micro_batch_size 4 \
   --num_epochs 3 \
   --learning_rate 3e-4 \
   --cutoff_len 256 \
   --val_set_size 120 \
-  --adapter_name lora
+  --eval_step 80 \
+  --save_step 80 \
+  --adapter_name lora \
+  --embedding_lambda 0.1 \
+  --ffn True \
+  --lora_r 32 \
+  --lora_alpha 64 \
+  --target_modules ["q_proj","k_proj","v_proj","fc_in","fc_out"] \
+  --output_dir ./checkpoints/gpt-j-6b_lora_att/math_10k/16_3e-4_3_01/
 ```
 
-The `math_10k.json` data is collected with the training sets of GSM8K, MAWPS, and AQuA(1000 examples). `yahma/llama-7b-hf` is a base model, LLaMa-7B. Add `lora` adapter to this model.
+The `math_10k.json` data is collected with the training sets of GSM8K, MAWPS, and AQuA(1000 examples). `EleutherAI/gpt-j-6b` is a base model, LLaMa-7B. Add `lora` adapter to this model.
 
 Example usage for Single GPUs:
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 python finetune.py \
-  --base_model 'yahma/llama-7b-hf' \
-  --data_path 'math_10k.json' \
-  --output_dir './trained_models/llama-lora' \
+  --base_model EleutherAI/gpt-j-6b \
+  --data_path ./ft-training_set/math_10k.json \
   --batch_size 16 \
   --micro_batch_size 4 \
   --num_epochs 3 \
   --learning_rate 3e-4 \
   --cutoff_len 256 \
   --val_set_size 120 \
-  --adapter_name lora
+  --eval_step 80 \
+  --save_step 80 \
+  --adapter_name lora \
+  --embedding_lambda 0.1 \
+  --ffn True \
+  --lora_r 32 \
+  --lora_alpha 64 \
+  --target_modules ["q_proj","k_proj","v_proj","fc_in","fc_out"] \
+  --output_dir ./checkpoints/gpt-j-6b_lora_att/math_10k/16_3e-4_3_01/
 ```
 
 Moreover, you can use `--use_gradient_checkpointing` to save more GPU memory, but it will increase the training time.
@@ -113,31 +116,18 @@ To use the AdapterH, just add the following arguments:
 --adapter_name bottleneck # use the bottleneck adapter, refers to AdapterH in the result table
 ```
 
-To use the AdapterP, just add the following arguments:
-
-```bash
---adapter_name bottleneck 
---use_adapterp  # use the AdapterP, refers to AdapterP in the result table
-```
-
-To use parallel adapter, just add the following arguments:
-
-```bash
---adapter_name bottleneck
---use_parallel_adapter
-```
 
 Note that, In order to facilitate INT8 training of large models with parallel adapters, we have adopted a technique whereby the parallel adapter layers are incorporated into multi-head attention layers and MLP layers, in parallel with Linear layers. It is different from [Hu et al. (2021)](https://arxiv.org/pdf/2106.09685.pdf). 
 
 ## Inference (generate.py)
 
-This file reads the foundation model from the Hugging Face model hub and the LoRA weights from `'./trained_models/llama-lora'` , and runs a Gradio interface for inference on a specified input. Users should treat this as example code for the use of the model, and modify it as needed.
+This file reads the foundation model from the Hugging Face model hub and finetuned model weights from checkpoints directory, e.g.`'./checkpoints/gpt-j-6b_bottleneck_att/math_10k/16_3e-4_3_01'` , and runs a Gradio interface for inference on a specified input. Users should treat this as example code for the use of the model, and modify it as needed.
 Example usage:
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 torchrun generate.py \
-    --base_model 'yahma/llama-7b-hf' \
-    --lora_weights './trained_models/llama-lora'
+    --base_model 'EleutherAI/gpt-j-6b' \
+    --weights_path ./checkpoints/gpt-j-6b_bottleneck_att/math_10k/16_3e-4_3_01/
 ```
 
 ## Evaluation (evaluate.py)
@@ -146,11 +136,12 @@ To evaluate the performance of the finetuned model on the Arithmetic Reasoning t
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 python evaluate.py 
-    --model LLaMA-7B \ #specify the base model
-    --adapter LoRA \   #specify the adapter name ["LoRA", "AdapterH", "AdapterP", "Parallel"， "Scaled_Parallel""]
+    --model GPT-j-6B \  #specify the base model ['LLaMA-7B','LLaMA-13B', 'GPT-j-6B']
+    --base_model 'EleutherAI/gpt-j-6b' \
     --dataset SVAMP \  #specify the test dataset
-    --base_model 'yahma/llama-7b-hf' \
-    --lora_weights './trained_models/llama-lora'
+    --adapter LoRA \   #specify the adapter name ["LoRA", "Bottleneck"]
+    --weights_path ./checkpoints/gpt-j-6b_bottleneck_att/math_10k/16_3e-4_3_01/ \  #specify the path to finetuned weights
+    --embedding_lambda 0.1  #specify embedding lambda
 ```
 
 <!-- ## Resource Consumption
@@ -264,3 +255,4 @@ If you use <img src="picture.jpg" width="14px" height="14px"> LLM-Adapters in yo
 ## Acknowledgement
 
 This repo benefits from [PEFT](https://github.com/huggingface/peft), [Adapter-Transformer](https://github.com/adapter-hub/adapter-transformers), [Alpaca-lora](https://github.com/tloen/alpaca-lora). Thanks for their wonderful works. Additionally, we thank DONG Shan and [dream.ai](https://dream.ai/create) for the exceptional logo design, which has added immense value to our project.
+# SIBO
