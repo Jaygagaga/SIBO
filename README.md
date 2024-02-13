@@ -14,10 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-<h1 align="center"> 
-<img src="picture.jpg" width="73" height="114">
-<p> SIBO</p>
-</h1>
 
 <h3 align="center">
     <p>SIBO: An Adapter Family for Parameter-Efficient Fine-Tuning of Large Language Models </p>
