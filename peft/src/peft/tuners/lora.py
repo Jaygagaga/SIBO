@@ -82,6 +82,7 @@ class LoraConfig(PeftConfig):
             "the final layer `classifier/score` are randomly initialized and as such need to be trainable and saved."
         },
     )
+    embedding_lambda:  float = field(default=None, metadata={"help": "embedding alpha"})
 
     def __post_init__(self):
         self.peft_type = PeftType.LORA
@@ -270,6 +271,8 @@ class LoraLayer:
         lora_alpha: int,
         lora_dropout: float,
         merge_weights: bool,
+        embedding_tensor=None,
+        embedding_lambda=None,
     ):
         self.r = r
         self.lora_alpha = lora_alpha
@@ -282,6 +285,9 @@ class LoraLayer:
         self.merged = False
         self.merge_weights = merge_weights
         self.disable_adapters = False
+        self.embedding_tensor = embedding_tensor
+        self.embedding_lambda = embedding_lambda
+
 
 
 class Linear(nn.Linear, LoraLayer):
@@ -295,10 +301,14 @@ class Linear(nn.Linear, LoraLayer):
         lora_dropout: float = 0.0,
         fan_in_fan_out: bool = False,  # Set this to True if the layer to replace stores weight like (fan_in, fan_out)
         merge_weights: bool = True,
+            embedding_tensor=None,
+            embedding_lambda = None,
         **kwargs,
     ):
         nn.Linear.__init__(self, in_features, out_features, **kwargs)
-        LoraLayer.__init__(self, r=r, lora_alpha=lora_alpha, lora_dropout=lora_dropout, merge_weights=merge_weights)
+        LoraLayer.__init__(self, r=r, lora_alpha=lora_alpha, lora_dropout=lora_dropout, merge_weights=merge_weights,
+                           embedding_tensor=embedding_tensor,
+                           embedding_lambda = embedding_lambda)
 
         self.fan_in_fan_out = fan_in_fan_out
         # Actual trainable parameters
@@ -311,6 +321,8 @@ class Linear(nn.Linear, LoraLayer):
         self.reset_parameters()
         if fan_in_fan_out:
             self.weight.data = self.weight.data.T
+        self.embedding_tensor= embedding_tensor
+        self.embedding_lambda = embedding_lambda
 
     def reset_parameters(self):
         nn.Linear.reset_parameters(self)
@@ -356,6 +368,9 @@ class Linear(nn.Linear, LoraLayer):
         elif self.r > 0 and not self.merged:
             result = F.linear(x, transpose(self.weight, self.fan_in_fan_out), bias=self.bias)
             if self.r > 0:
+                if self.embedding_tensor != None:
+                    print('embedding_tensor exists','embedding_lambda is {}'.format(self.embedding_lambda))
+                    x = (1 - self.embedding_lambda) * x + self.embedding_lambda * self.embedding_tensor
                 result += self.lora_B(self.lora_A(self.lora_dropout(x.to(self.lora_A.weight.dtype)))) * self.scaling
         else:
              result = F.linear(x, transpose(self.weight, self.fan_in_fan_out), bias=self.bias)

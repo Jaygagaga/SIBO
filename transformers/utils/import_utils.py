@@ -23,6 +23,7 @@ import shutil
 import subprocess
 import sys
 import warnings
+import torch.fx
 from collections import OrderedDict
 from functools import lru_cache, wraps
 from itertools import chain
@@ -1341,6 +1342,8 @@ class _LazyModule(ModuleType):
         return value
 
     def _get_module(self, module_name: str):
+        import torch.fx
+
         try:
             return importlib.import_module("." + module_name, self.__name__)
         except Exception as e:

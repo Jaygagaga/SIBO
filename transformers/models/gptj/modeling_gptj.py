@@ -270,7 +270,7 @@ class GPTJAttention(nn.Module):
 
 
 class GPTJMLP(nn.Module):
-    def __init__(self, intermediate_size, config):  # in MLP: intermediate_size= 4 * embed_dim
+    def __init__(self, intermediate_size, config,embedding_tensor=None,embedding_lambda=None):  # in MLP: intermediate_size= 4 * embed_dim
         super().__init__()
         embed_dim = config.n_embd
 
@@ -279,8 +279,13 @@ class GPTJMLP(nn.Module):
 
         self.act = ACT2FN[config.activation_function]
         self.dropout = nn.Dropout(config.resid_pdrop)
+        self.embedding_tensor = embedding_tensor
+        self.embedding_lambda = embedding_lambda
 
     def forward(self, hidden_states: Optional[torch.FloatTensor]) -> torch.FloatTensor:
+        if self.embedding_tensor != None:
+            assert self.embedding_lambda != None
+            hidden_states = (1 - self.embedding_lambda) * hidden_states + self.embedding_lambda * self.embedding_tensor
         hidden_states = self.fc_in(hidden_states)
         hidden_states = self.act(hidden_states)
         hidden_states = self.fc_out(hidden_states)
@@ -543,6 +548,8 @@ class GPTJModel(GPTJPreTrainedModel):
 
     def set_input_embeddings(self, new_embeddings):
         self.wte = new_embeddings
+    def get_embedding_tensor(self,input_ids: torch.LongTensor = None):
+        return  self.wte(input_ids)
 
     @add_start_docstrings_to_model_forward(GPTJ_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     @add_code_sample_docstrings(
@@ -730,6 +737,7 @@ class GPTJForCausalLM(GPTJPreTrainedModel):
         super().__init__(config)
         self.transformer = GPTJModel(config)
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size)
+        self.get_embedding_tensor = self.transformer.get_embedding_tensor
 
         # Model parallel
         self.model_parallel = False

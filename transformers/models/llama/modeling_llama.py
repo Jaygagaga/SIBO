@@ -336,6 +336,7 @@ class LlamaAttention(nn.Module):
         past_key_value: Optional[Tuple[torch.Tensor]] = None,
         output_attentions: bool = False,
         use_cache: bool = False,
+        embedding_tensor: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         if "padding_mask" in kwargs:
@@ -643,6 +644,7 @@ class LlamaDecoderLayer(nn.Module):
         past_key_value: Optional[Tuple[torch.Tensor]] = None,
         output_attentions: Optional[bool] = False,
         use_cache: Optional[bool] = False,
+        # embedding_tensor:Optional[torch.Tensor] = None,
         **kwargs,
     ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
         """
@@ -832,6 +834,12 @@ class LlamaModel(LlamaPreTrainedModel):
 
     def set_input_embeddings(self, value):
         self.embed_tokens = value
+    def get_embedding_tensor(self,input_ids: torch.LongTensor = None,
+        # attention_mask: Optional[torch.Tensor] = None,
+        # position_ids: Optional[torch.LongTensor] = None
+                             ):
+        inputs_embeds = self.embed_tokens(input_ids)
+        return inputs_embeds
 
     @add_start_docstrings_to_model_forward(LLAMA_INPUTS_DOCSTRING)
     def forward(
@@ -888,6 +896,7 @@ class LlamaModel(LlamaPreTrainedModel):
             )
 
         # embed positions
+        assert inputs_embeds != None, 'embedding_tensor is none!'
         hidden_states = inputs_embeds
 
         if self.gradient_checkpointing and self.training:
@@ -961,6 +970,7 @@ class LlamaForCausalLM(LlamaPreTrainedModel):
         self.model = LlamaModel(config)
         self.vocab_size = config.vocab_size
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+        self.get_embedding_tensor = self.model.get_embedding_tensor
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -982,6 +992,14 @@ class LlamaForCausalLM(LlamaPreTrainedModel):
 
     def get_decoder(self):
         return self.model
+
+    # def get_embedding_tensor(self,input_ids: torch.LongTensor = None,
+    #     # attention_mask: Optional[torch.Tensor] = None,
+    #     # position_ids: Optional[torch.LongTensor] = None
+    #                          ):
+    #     inputs_embeds = self.embed_tokens(input_ids)
+    #     return inputs_embeds
+
 
     @add_start_docstrings_to_model_forward(LLAMA_INPUTS_DOCSTRING)
     @replace_return_docstrings(output_type=CausalLMOutputWithPast, config_class=_CONFIG_FOR_DOC)

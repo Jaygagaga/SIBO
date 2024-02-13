@@ -8,8 +8,9 @@ import argparse
 import fire
 
 import torch
-
+# os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 sys.path.append(os.path.join(os.getcwd(), "peft/src/"))
+sys.path.append(os.path.join(os.getcwd(), "transformers"))
 from peft import PeftModel
 from tqdm import tqdm
 from transformers import GenerationConfig, LlamaForCausalLM, LlamaTokenizer, AutoModelForCausalLM, AutoTokenizer
@@ -29,19 +30,21 @@ except:  # noqa: E722
 def main(
         load_8bit: bool = False,
         base_model: str = "",
-        lora_weights: str = "tloen/alpaca-lora-7b",
+        weights_path: str = "tloen/alpaca-lora-7b",
         share_gradio: bool = False,
 ):
     args = parse_args()
 
     def evaluate(
             instruction,
-            input=None,
+            adapter,
+            embedding_lambda,
             temperature=0.1,
             top_p=0.75,
             top_k=40,
             num_beams=4,
             max_new_tokens=256,
+
             **kwargs,
     ):
         prompt = generate_prompt(instruction, input)
@@ -52,6 +55,8 @@ def main(
             top_p=top_p,
             top_k=top_k,
             num_beams=num_beams,
+            adapter = adapter,
+            embedding_lambda = float(embedding_lambda),
             **kwargs,
         )
         with torch.no_grad():
@@ -84,7 +89,8 @@ def main(
         print("Response:", evaluate(instruction))
         print()
     """
-    save_file = f'experiment/{args.model}-{args.adapter}-{args.dataset}.json'
+    weights = args.weights_path.split('/')[-2]
+    save_file = f'experiment/{args.model}-{args.adapter}-{args.dataset}-{weights}_.json'
     create_dir('experiment/')
 
     dataset = load_data(args)
@@ -96,8 +102,9 @@ def main(
     pbar = tqdm(total=total)
     for idx, data in enumerate(dataset):
         instruction = data.get('instruction')
+        print('args.adapter', args.adapter)
+        outputs = evaluate(instruction, args.adapter, args.embedding_lambda)
 
-        outputs = evaluate(instruction)
         label = data.get('answer')
         flag = False
         if args.dataset.lower() in ['aqua']:
@@ -178,15 +185,15 @@ def load_data(args) -> list:
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', choices=['AddSub', 'MultiArith', 'SingleEq', 'gsm8k', 'AQuA', 'SVAMP'],
+    parser.add_argument('--dataset', choices=[ 'mawps', 'gsm8k', 'AQuA', 'SVAMP'],
                         required=True)
-    parser.add_argument('--model', choices=['LLaMA-7B', 'BLOOM-7B', 'GPT-j-6B'], required=True)
-    parser.add_argument('--adapter', choices=['LoRA', 'AdapterP', 'AdapterH', 'Parallel', 'Prefix'],
+    parser.add_argument('--model', choices=['LLaMA-7B','LLaMA-13B', 'GPT-j-6B'], required=True)
+    parser.add_argument('--adapter', choices=['LoRA','Bottleneck'],
                         required=True)
     parser.add_argument('--base_model', required=True)
-    parser.add_argument('--lora_weights', required=True)
+    parser.add_argument('--weights_path', required=True)
     parser.add_argument('--load_8bit', action='store_true', default=False)
-
+    parser.add_argument("--embedding_lambda", default=None)
     return parser.parse_args()
 
 
@@ -202,15 +209,15 @@ def load_model(args) -> tuple:
     base_model = args.base_model
     if not base_model:
         raise ValueError(f'can not find base model name by the value: {args.model}')
-    lora_weights = args.lora_weights
-    if not lora_weights:
-        raise ValueError(f'can not find lora weight, the value is: {lora_weights}')
+    weights_path = args.weights_path
+    if not weights_path:
+        raise ValueError(f'can not find lora weight, the value is: {weights_path}')
 
     load_8bit = args.load_8bit
-    if args.model == 'LLaMA-7B':
-        tokenizer = LlamaTokenizer.from_pretrained(base_model)
+    if args.model == 'LLaMA-7B' or args.model == 'LLaMA-13B':
+        tokenizer = LlamaTokenizer.from_pretrained(base_model, local_files_only=True)
     else:
-        tokenizer = AutoTokenizer.from_pretrained(base_model)
+        tokenizer = AutoTokenizer.from_pretrained(base_model, local_files_only=True)
     if device == "cuda":
         model = AutoModelForCausalLM.from_pretrained(
             base_model,
@@ -218,10 +225,11 @@ def load_model(args) -> tuple:
             torch_dtype=torch.float16,
             device_map="auto",
             trust_remote_code=True,
+            local_files_only=True
         ) # fix zwq
         model = PeftModel.from_pretrained(
             model,
-            lora_weights,
+            weights_path,
             torch_dtype=torch.float16,
             device_map={"":0}
         )
@@ -233,7 +241,7 @@ def load_model(args) -> tuple:
         )
         model = PeftModel.from_pretrained(
             model,
-            lora_weights,
+            weights_path,
             device_map={"": device},
             torch_dtype=torch.float16,
         )
@@ -243,7 +251,7 @@ def load_model(args) -> tuple:
         )
         model = PeftModel.from_pretrained(
             model,
-            lora_weights,
+            weights_path,
             device_map={"": device},
         )
 
@@ -271,7 +279,7 @@ def load_instruction(args) -> str:
 
 def extract_answer_number(args, sentence: str) -> float:
     dataset = args.dataset.lower()
-    if dataset in ["multiarith", "addsub", "singleeq", "gsm8k", "svamp"]:
+    if dataset in ["multiarith", "addsub", "singleeq", "gsm8k", "svamp", 'mawps']:
         sentence = sentence.replace(',', '')
         pred = [s for s in re.findall(r'-?\d+\.?\d*', sentence)]
         if not pred:

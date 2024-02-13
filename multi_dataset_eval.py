@@ -1,22 +1,25 @@
 from concurrent.futures import ProcessPoolExecutor
 import queue
 import subprocess
-def evaluate(dataset, gpu):
+
+def evaluate(dataset, gpu, embedding_lambda):
     print('*******dataset:', dataset)
 
     command = f"CUDA_VISIBLE_DEVICES={gpu} python evaluate.py \
-               --model LLaMA-7B \
+               --model BLOOM-7B \
                --adapter LoRA \
                --dataset {dataset} \
-               --base_model '../LLM/models/llama-7b-hf' \
-               --lora_weights './trained_models/llama-lora'"
+               --base_model '/root/autodl-tmp/bloomz-7b1' \
+               --lora_weights './trained_models/llama-lora' \
+                --embedding_lambda {embedding_lambda} \
+                 --lora_weights '/root/autodl-tmp/LLM-Adapters/checkpoints/bloomz_7b1_bottleneck_att/math_10k/16_3e-4_3_01/' \ "
 
     result = subprocess.run(command, shell=True, text=True, capture_output=False)
     print(f"Evaluation results for dataset {dataset} on GPU {gpu}:\n{result.stdout}")
     return gpu
 
 
-datasets = ['AQuA', 'AddSub', 'MultiArith', 'SingleEq', 'gsm8k', 'SVAMP']
+datasets = ['AQuA', 'gsm8k', 'SVAMP', 'mawps']
 gpus = [1, 2, 3]
 tasks_queue = queue.Queue()
 gpu_queue = queue.Queue()

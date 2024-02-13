@@ -8,8 +8,9 @@ import argparse
 import fire
 
 import torch
-
+# os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 sys.path.append(os.path.join(os.getcwd(), "peft/src/"))
+sys.path.append(os.path.join(os.getcwd(), "transformers"))
 from peft import PeftModel
 from tqdm import tqdm
 from transformers import GenerationConfig, LlamaForCausalLM, LlamaTokenizer, AutoModelForCausalLM, AutoTokenizer
@@ -29,13 +30,15 @@ except:  # noqa: E722
 def main(
         load_8bit: bool = False,
         base_model: str = "",
-        lora_weights: str = "tloen/alpaca-lora-7b",
+        weights_path: str = "tloen/alpaca-lora-7b",
         share_gradio: bool = False,
 ):
     args = parse_args()
 
     def evaluate(
             instructions,
+            adapter,
+            embedding_lambda,
             input=None,
             temperature=0.1,
             top_p=0.75,
@@ -52,6 +55,8 @@ def main(
             top_p=top_p,
             top_k=top_k,
             num_beams=num_beams,
+            adapter=adapter,
+            embedding_lambda=float(embedding_lambda),
             **kwargs,
         )
         with torch.no_grad():
@@ -68,7 +73,8 @@ def main(
         print(outputs)
         return outputs
 
-    save_file = f'experiment/{args.model}-{args.adapter}-{args.dataset}.json'
+    weights = args.weights_path.split('/')[-2]
+    save_file = f'experiment/{args.model}-{args.adapter}-{args.dataset}-{weights}.json'
     create_dir('experiment/')
 
     dataset = load_data(args)
@@ -83,7 +89,7 @@ def main(
         current += len(batch)
         instructions = [data.get('instruction') for data in batch]
 
-        outputs = evaluate(instructions)
+        outputs = evaluate(instructions, args.adapter, args.embedding_lambda)
 
         for data, output in zip(batch, outputs):
             label = data.get('answer')
@@ -168,14 +174,14 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', choices=["boolq", "piqa", "social_i_qa", "hellaswag", "winogrande", "ARC-Challenge", "ARC-Easy", "openbookqa"],
                         required=True)
-    parser.add_argument('--model', choices=['LLaMA-7B', "LLaMA-13B",'BLOOM-7B', 'GPT-j-6B'], required=True)
-    parser.add_argument('--adapter', choices=['LoRA', 'AdapterP', 'AdapterH', 'Parallel'],
+    parser.add_argument('--model', choices=['LLaMA-7B', 'LLaMA-13B', 'GPT-j-6B'], required=True)
+    parser.add_argument('--adapter', choices=['LoRA', 'Bottleneck'],
                         required=True)
     parser.add_argument('--base_model', required=True)
-    parser.add_argument('--lora_weights', required=True)
+    parser.add_argument('--weights_path', required=True)
+    parser.add_argument("--embedding_lambda", default=None)
     parser.add_argument('--batch_size', type=int, required=True)
-    parser.add_argument('--load_8bit', action='store_true', default=False)
-
+    parser.add_argument('--load_8bit', action='store_true', default=True)
     return parser.parse_args()
 
 
@@ -191,9 +197,9 @@ def load_model(args) -> tuple:
     base_model = args.base_model
     if not base_model:
         raise ValueError(f'can not find base model name by the value: {args.model}')
-    lora_weights = args.lora_weights
-    if not lora_weights:
-        raise ValueError(f'can not find lora weight, the value is: {lora_weights}')
+    weights_path = args.weights_path
+    if not weights_path:
+        raise ValueError(f'can not find lora weight, the value is: {weights_path}')
 
     load_8bit = args.load_8bit
     if "LLaMA" in args.model:
@@ -214,7 +220,7 @@ def load_model(args) -> tuple:
         ) # fix zwq
         model = PeftModel.from_pretrained(
             model,
-            lora_weights,
+            weights_path,
             torch_dtype=torch.float16,
             device_map={"":0}
         )
@@ -226,7 +232,7 @@ def load_model(args) -> tuple:
         )
         model = PeftModel.from_pretrained(
             model,
-            lora_weights,
+            weights_path,
             device_map={"": device},
             torch_dtype=torch.float16,
         )
@@ -236,7 +242,7 @@ def load_model(args) -> tuple:
         )
         model = PeftModel.from_pretrained(
             model,
-            lora_weights,
+            weights_path,
             device_map={"": device},
         )
 

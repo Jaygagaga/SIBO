@@ -263,6 +263,8 @@ class AdapterLayer:
         non_linearity: str,
         adapter_dropout: float,
         scaling: Union[float, str],
+            embeddding_tensor = None,
+            embeddding_alpha = None
     ):
         self.bottleneck_size = bottleneck_size
         self.non_linearity = non_linearity
@@ -273,6 +275,8 @@ class AdapterLayer:
         else:
             self.adapter_dropout = lambda x: x
         self.disable_adapters = False
+        self.embeddding_tensor = embeddding_tensor
+        self.embeddding_alpha = embeddding_alpha
 
 
 class Linear(nn.Linear, AdapterLayer):
@@ -290,13 +294,17 @@ class Linear(nn.Linear, AdapterLayer):
         adapter_dropout: float,
         scaling: Union[float, str],
         init_weights: str,
+            embeddding_tensor=None,
+            embeddding_alpha = None,
         **kwargs,
     ):
         nn.Linear.__init__(self, in_features, out_features, **kwargs)
         AdapterLayer.__init__(self, bottleneck_size=bottleneck_size,
                                 non_linearity=non_linearity,
                                 adapter_dropout=adapter_dropout,
-                                scaling=scaling)
+                                scaling=scaling,
+                              embeddding_tensor = embeddding_tensor,
+                              embeddding_alpha = embeddding_alpha)
 
         self.init_weights = init_weights
         self.adapter_type = adapter_type
@@ -311,6 +319,8 @@ class Linear(nn.Linear, AdapterLayer):
         #Freezing the pre-trained weight matrix
         self.weight.requires_grad = False
         self.reset_parameters()
+        self.embeddding_tensor = embeddding_tensor
+        self.embeddding_alpha = embeddding_alpha
 
     def reset_parameters(self):
         nn.Linear.reset_parameters(self)
@@ -359,6 +369,10 @@ class Linear(nn.Linear, AdapterLayer):
 
                 if x.dtype != torch.float32:
                     x = x.float()
+                if hasattr(self, 'embedding_tensor') and self.embedding_tensor != None:
+                    print('embedding_tensor exists, embedding_lambda is {}'.format(self.embedding_lambda))
+                    x = (1 - self.embedding_lambda) * x + self.embedding_lambda * self.embedding_tensor
+
                 output = self.adapter_up(self.act_fn(self.adapter_down(self.adapter_dropout(x)))).to(expected_dtype) * self.adapter_scaling
 
                 output = output + residual
@@ -372,7 +386,8 @@ class Linear(nn.Linear, AdapterLayer):
 
                 if x.dtype != torch.float32:
                     x = x.float()
-
+                if hasattr(self, 'embedding_tensor') and self.embedding_tensor != None:
+                    x = (1 - self.embedding_lambda) * x + self.embedding_lambda * self.embedding_tensor
                 output = self.adapter_up(self.act_fn(self.adapter_down(self.adapter_dropout(x)))).to(expected_dtype) * self.adapter_scaling
 
                 result = output + residual

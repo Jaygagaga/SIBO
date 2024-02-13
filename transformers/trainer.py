@@ -318,6 +318,7 @@ class Trainer:
         self,
         model: Union[PreTrainedModel, nn.Module] = None,
         args: TrainingArguments = None,
+        our_args = None,
         data_collator: Optional[DataCollator] = None,
         train_dataset: Optional[Dataset] = None,
         eval_dataset: Optional[Union[Dataset, Dict[str, Dataset]]] = None,
@@ -333,6 +334,7 @@ class Trainer:
             logger.info(f"No `TrainingArguments` passed, using `output_dir={output_dir}`.")
             args = TrainingArguments(output_dir=output_dir)
         self.args = args
+        self.our_args= our_args
         # Seed must be set before instantiating the model when using model
         enable_full_determinism(self.args.seed) if self.args.full_determinism else set_seed(self.args.seed)
         self.hp_name = None
@@ -2745,6 +2747,52 @@ class Trainer:
             labels = inputs.pop("labels")
         else:
             labels = None
+        embedding_tensor = model.base_model.model.get_embedding_tensor(inputs['input_ids'])
+        inputs['inputs_embeds'] = embedding_tensor
+        inputs['input_ids'] = None
+        if self.our_args['adapter'] =='lora':
+            if self.our_args['ffn']:
+                if model.base_model.model._get_name() =='BloomForCausalLM':
+                    for layer in model.base_model.model.transformer.h:
+
+                        for n, m in layer.mlp.named_modules():
+                            if 'dense_h_to_4h' in n and hasattr(m, 'lora_A'):
+                                m.embedding_tensor = embedding_tensor
+                                m.embedding_lambda = self.our_args['embedding_lambda']
+                            # if 'dense_4h_to_h' in n and hasattr(m, 'lora_A'):
+                            #     m.embedding_tensor = embedding_tensor
+                            #     m.embedding_lambda = self.our_args['embedding_lambda']
+                elif model.base_model.model._get_name() =='GPTJForCausalLM':
+                    for layer in model.base_model.model.transformer.h:
+                        for n, m in layer.mlp.named_modules():
+                            if 'fc_in' in n and hasattr(m, 'lora_A'):
+                                m.embedding_tensor = embedding_tensor
+                                m.embedding_lambda = self.our_args['embedding_lambda']
+
+                else: #TODO: test model.base_model.model._get_name()
+                    for layer in model.base_model.model.model.layers:
+                        for n, m in layer.mlp.named_modules():
+                            if 'up_proj' in n and hasattr(m, 'lora_A'):
+                                m.embedding_tensor = embedding_tensor
+                                m.embedding_lambda = self.our_args['embedding_lambda']
+
+        if self.our_args['adapter'] == 'bottleneck':
+            if self.our_args['ffn']:
+                if model.base_model.model._get_name() == 'BloomForCausalLM' or model.base_model.model._get_name() =='GPTJForCausalLM':
+                    for layer in model.base_model.model.transformer.h:
+                            layer.mlp.embedding_tensor = embedding_tensor
+                            layer.mlp.embedding_lambda = self.our_args['embedding_lambda']
+
+                else:
+                    for layer in model.base_model.model.model.layers:
+                        for n, m in layer.mlp.named_modules():
+                            if 'gate_proj' in n and hasattr(m, 'adapter_down'):
+                                m.embedding_tensor = embedding_tensor
+                                m.embedding_lambda = self.our_args['embedding_lambda']
+                            if 'up_proj' in n and hasattr(m, 'adapter_down'):
+                                m.embedding_tensor = embedding_tensor
+                                m.embedding_lambda = self.our_args['embedding_lambda']
+
         outputs = model(**inputs)
         # Save past state if it exists
         # TODO: this needs to be fixed and made cleaner later.

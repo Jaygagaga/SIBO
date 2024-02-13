@@ -30,7 +30,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--base_model", default='/root/autodl-tmp/llama-7b-hf')
 parser.add_argument("--dataset_name", default='gsm8k')
 parser.add_argument("--model_weights", default='')
-parser.add_argument("--embedding_alpha", default=None)
+parser.add_argument("--embedding_lambda", default=None)
 parser.add_argument("--adapter", default=None)
 parser.add_argument("--load_8bit", default=False)
 
@@ -395,7 +395,7 @@ def main():
             top_k=40,
             num_beams=4,
             adapter='lora',
-            embedding_alpha=0.1,
+            embedding_lambda=0.1,
             max_new_tokens=128,
             **kwargs,
     ):
@@ -408,7 +408,7 @@ def main():
             top_k=top_k,
             num_beams=num_beams,
             adapter=adapter,
-            embedding_alpha=embedding_alpha,
+            embedding_lambda=embedding_lambda,
             **kwargs,
         )
         with torch.no_grad():
@@ -432,7 +432,7 @@ def main():
         # for test in test_data['train']['input_ids']:
         logger.info(f"No. {num} sample")
         input_ids = torch.tensor(test).unsqueeze(0).to(device)
-        output = evaluate(input_ids, adapter=args.adapter,embedding_alpha = float(args.embedding_alpha))
+        output = evaluate(input_ids, adapter=args.adapter,embedding_lambda = float(args.embedding_lambda))
         outputs.append(output)
 
     # # llm = LLM(model="meta-math/MetaMath-Mistral-7B", trust_remote_code=True, tensor_parallel_size=1)

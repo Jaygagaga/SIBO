@@ -22,13 +22,15 @@ except:  # noqa: E722
 
 def main(
     load_8bit: bool = False,
-    base_model: str = "",
-    lora_weights: str = "tloen/alpaca-lora-7b",
+    base_model: str = "EleutherAI/gpt-j-6b",
+    weights_path: str = "",
     share_gradio: bool = False,
+    adapter: str = "LoRA",
+    embedding_lambda: float = 0.1,
 ):
     assert (
         base_model
-    ), "Please specify a --base_model, e.g. --base_model='decapoda-research/llama-7b-hf'"
+    ), "Please specify a --base_model, e.g. --base_model='EleutherAI/gpt-j-6b'"
 
     tokenizer = LlamaTokenizer.from_pretrained(base_model)
     if device == "cuda":
@@ -41,7 +43,7 @@ def main(
         )
         model = PeftModel.from_pretrained(
             model,
-            lora_weights,
+            weights_path,
             torch_dtype=torch.float16,
         )
     elif device == "mps":
@@ -52,7 +54,7 @@ def main(
         )
         model = PeftModel.from_pretrained(
             model,
-            lora_weights,
+            weights_path,
             device_map={"": device},
             torch_dtype=torch.float16,
         )
@@ -62,7 +64,7 @@ def main(
         )
         model = PeftModel.from_pretrained(
             model,
-            lora_weights,
+            weights_path,
             device_map={"": device},
         )
 
@@ -80,6 +82,8 @@ def main(
 
     def evaluate(
         instruction,
+        adapter,
+        embedding_lambda,
         input=None,
         temperature=0.1,
         top_p=0.75,
@@ -96,6 +100,8 @@ def main(
             top_p=top_p,
             top_k=top_k,
             num_beams=num_beams,
+            adapter=adapter,
+            embedding_lambda=float(embedding_lambda),
             **kwargs,
         )
         with torch.no_grad():
@@ -105,6 +111,7 @@ def main(
                 return_dict_in_generate=True,
                 output_scores=True,
                 max_new_tokens=max_new_tokens,
+
             )
         s = generation_output.sequences[0]
         output = tokenizer.decode(s)
@@ -189,3 +196,6 @@ def generate_prompt(instruction, input=None):
 
 if __name__ == "__main__":
     fire.Fire(main)
+
+#llm = LLM(model="Viet-Mistral/Vistral-7B-Chat", trust_remote_code=True, tensor_parallel_size=1)
+#outputs = llm.generate(inputs, sampling_params)

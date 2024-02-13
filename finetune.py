@@ -7,13 +7,16 @@ import torch
 import transformers
 from datasets import load_dataset
 from typing import List, Optional, Union
-
+import logging
+logger = logging.getLogger(__name__)
 """
 Unused imports:
 import torch.nn as nn
 import bitsandbytes as bnb
 """
+# os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 sys.path.append(os.path.join(os.getcwd(), "peft/src/"))
+sys.path.append(os.path.join(os.getcwd(), "transformers"))
 from peft import (  # noqa: E402
     LoraConfig,
     BottleneckConfig,
@@ -24,13 +27,13 @@ from peft import (  # noqa: E402
     set_peft_model_state_dict,
 )
 from transformers import AutoModelForCausalLM, AutoTokenizer, LlamaTokenizer, AutoModel  # noqa: F402
-
+import time
 
 def train(
         # model/data params
         base_model: str = "",  # the only required argument
-        data_path: str = "yahma/alpaca-cleaned",
-        output_dir: str = "./lora-alpaca",
+        data_path: str = "EleutherAI/gpt-j-6b",
+        output_dir: str = "./checkpoints",
         adapter_name: str = "lora",
         load_8bit : bool = False,
         # training hyperparams
@@ -45,6 +48,8 @@ def train(
         save_step: int = 200,
         # lora hyperparams
         lora_r: int = 8,
+        embedding_lambda: float= 0.1,
+        ffn:  bool = True,
         lora_alpha: int = 16,
         lora_dropout: float = 0.05,
         lora_target_modules: List[str] = None,
@@ -54,7 +59,7 @@ def train(
         adapter_dropout: float = 0.0,
         use_parallel_adapter: bool = False,
         use_adapterp: bool = False,
-        target_modules: List[str] = None,
+        target_modules: List[str] = ["query_key_value", "dense_4h_to_h", "dense_h_to_4h"],
         scaling: Union[float, str] = 1.0,
         # prefix tuning hyperparams
         num_virtual_tokens: int = 30,
@@ -68,6 +73,7 @@ def train(
         wandb_log_model: str = "",  # options: false | true
         resume_from_checkpoint: str = None,  # either training checkpoint or final adapter
 ):
+    T1 = time.time()
     print(
         f"Finetuning model with params:\n"
         f"base_model: {base_model}\n"
@@ -81,6 +87,8 @@ def train(
         f"val_set_size: {val_set_size}\n"
         f"use_gradient_checkpointing: {use_gradient_checkpointing}\n"
         f"lora_r: {lora_r}\n"
+        f"embedding_lambda: {embedding_lambda}\n"
+        f"ffn: {ffn}\n"
         f"lora_alpha: {lora_alpha}\n"
         f"lora_dropout: {lora_dropout}\n"
         f"lora_target_modules: {lora_target_modules}\n"
@@ -139,6 +147,7 @@ def train(
             torch_dtype=torch.float16,
             device_map={"": int(os.environ.get("LOCAL_RANK") or 0)},
             trust_remote_code=True,
+            local_files_only = True,
         )
 
     if model.config.model_type == "llama":
@@ -202,6 +211,7 @@ def train(
             lora_dropout=lora_dropout,
             bias="none",
             task_type="CAUSAL_LM",
+            embedding_lambda = embedding_lambda,
         )
     elif adapter_name == "bottleneck":
         config = BottleneckConfig(
@@ -269,11 +279,13 @@ def train(
         # keeps Trainer from trying its own DataParallelism when more than 1 gpu is available
         model.is_parallelizable = True
         model.model_parallel = True
+    our_args = { 'ffn':ffn,'embedding_lambda':embedding_lambda,'adapter':adapter_name}
 
     trainer = transformers.Trainer(
         model=model,
         train_dataset=train_data,
         eval_dataset=val_data,
+        our_args = our_args,
         args=transformers.TrainingArguments(
             per_device_train_batch_size=micro_batch_size,
             gradient_accumulation_steps=gradient_accumulation_steps,
@@ -311,13 +323,23 @@ def train(
     if torch.__version__ >= "2" and sys.platform != "win32":
         model = torch.compile(model)
 
-    trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+    train_result = trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+    metrics = train_result.metrics
+    # trainer.log_metrics("train", metrics)
+    # trainer.save_metrics("train", metrics)
 
     model.save_pretrained(output_dir)
 
     print(
         "\n If there's a warning about missing keys above, please disregard :)"
     )
+    T2 = time.time()
+    minutes = int((T2 - T1) // 60)
+    print('This process consumes: %s minutes' % minutes)
+    logger.info(f'This process consumes: {minutes} minutes')
+    metrics['time'] = minutes
+    trainer.log_metrics("train", metrics)
+    trainer.save_metrics("train", metrics)
 
 
 def generate_prompt(data_point):

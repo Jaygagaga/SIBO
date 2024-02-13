@@ -258,8 +258,8 @@ class BloomAttention(nn.Module):
         use_cache: bool = False,
         output_attentions: bool = False,
     ):
-        fused_qkv = self.query_key_value(hidden_states)  # [batch_size, seq_length, 3 x hidden_size]
 
+        fused_qkv = self.query_key_value(hidden_states)  # [batch_size, seq_length, 3 x hidden_size]
         # 3 x [batch_size, seq_length, num_heads, head_dim]
         (query_layer, key_layer, value_layer) = self._split_heads(fused_qkv)
 
@@ -340,7 +340,7 @@ class BloomAttention(nn.Module):
 
 
 class BloomMLP(nn.Module):
-    def __init__(self, config: BloomConfig):
+    def __init__(self, config: BloomConfig, embedding_tensor=None, embedding_lambda=None):
         super().__init__()
         hidden_size = config.hidden_size
 
@@ -350,8 +350,14 @@ class BloomMLP(nn.Module):
         self.gelu_impl = BloomGelu()
         self.dense_4h_to_h = nn.Linear(4 * hidden_size, hidden_size)
         self.hidden_dropout = config.hidden_dropout
+        self.embedding_tensor = embedding_tensor
+        self.embedding_lambda = embedding_lambda
 
     def forward(self, hidden_states: torch.Tensor, residual: torch.Tensor) -> torch.Tensor:
+
+        if self.embedding_tensor != None:
+            assert self.embedding_lambda != None
+            hidden_states = (1 - self.embedding_lambda) * hidden_states + self.embedding_lambda * self.embedding_tensor
         hidden_states = self.gelu_impl(self.dense_h_to_4h(hidden_states))
 
         if self.pretraining_tp > 1 and self.slow_but_exact:
@@ -611,6 +617,10 @@ class BloomModel(BloomPreTrainedModel):
 
     def set_input_embeddings(self, new_embeddings: torch.Tensor):
         self.word_embeddings = new_embeddings
+    def get_embedding_tensor(self,input_ids):
+        inputs_embeds = self.word_embeddings(input_ids)
+        return inputs_embeds
+
 
     @add_start_docstrings_to_model_forward(BLOOM_INPUTS_DOCSTRING)
     @add_code_sample_docstrings(
@@ -767,9 +777,10 @@ class BloomForCausalLM(BloomPreTrainedModel):
         super().__init__(config)
         self.transformer = BloomModel(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
-
+        self.get_embedding_tensor = self.transformer.get_embedding_tensor
         # Initialize weights and apply final processing
         self.post_init()
+
 
     def get_output_embeddings(self):
         return self.lm_head

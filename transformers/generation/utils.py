@@ -1680,6 +1680,8 @@ class GenerationMixin:
                 return_dict_in_generate=generation_config.return_dict_in_generate,
                 synced_gpus=synced_gpus,
                 streamer=streamer,
+                adapter = generation_config.adapter,
+                embedding_lambda = generation_config.embedding_lambda,
                 **model_kwargs,
             )
 
@@ -1727,6 +1729,9 @@ class GenerationMixin:
                 return_dict_in_generate=generation_config.return_dict_in_generate,
                 synced_gpus=synced_gpus,
                 streamer=streamer,
+                adapter=generation_config.adapter,
+                embedding_lambda=generation_config.embedding_lambda,
+
                 **model_kwargs,
             )
 
@@ -1759,6 +1764,9 @@ class GenerationMixin:
                 output_scores=generation_config.output_scores,
                 return_dict_in_generate=generation_config.return_dict_in_generate,
                 synced_gpus=synced_gpus,
+                adapter=generation_config.adapter,
+                embedding_lambda=generation_config.embedding_lambda,
+
                 **model_kwargs,
             )
 
@@ -2068,7 +2076,9 @@ class GenerationMixin:
                 # prepare inputs
                 model_kwargs["use_cache"] = True
                 model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
-
+                inputs_embeds = self.get_embedding_tensor(model_inputs['input_ids'])
+                model_inputs['input_ids'] = None
+                model_inputs['inputs_embeds'] = inputs_embeds
                 # encode the given prefix and prepare model inputs; encoder-decoder model process the prefix and save
                 # the `encoder_outputs`
                 outputs = self(
@@ -2157,7 +2167,9 @@ class GenerationMixin:
                 for i in range(top_k):
                     # compute the candidate tokens by the language model and collect their hidden_states
                     next_model_inputs = self.prepare_inputs_for_generation(top_k_ids[:, i].view(-1, 1), **model_kwargs)
-
+                    inputs_embeds = self.get_embedding_tensor(next_model_inputs['input_ids'])
+                    next_model_inputs['input_ids'] = None
+                    next_model_inputs['inputs_embeds'] = inputs_embeds
                     outputs = self(
                         **next_model_inputs,
                         return_dict=True,
@@ -2364,6 +2376,8 @@ class GenerationMixin:
         return_dict_in_generate: Optional[bool] = None,
         synced_gpus: bool = False,
         streamer: Optional["BaseStreamer"] = None,
+            # embedding_lambda = None,
+
         **model_kwargs,
     ) -> Union[GreedySearchOutput, torch.LongTensor]:
         r"""
@@ -2517,6 +2531,50 @@ class GenerationMixin:
             # prepare model inputs
             model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
 
+            inputs_embeds = self.get_embedding_tensor(model_inputs['input_ids'])
+            model_inputs['input_ids'] = None
+            model_inputs['inputs_embeds'] = inputs_embeds
+            if model_kwargs['adapter'] == 'LoRA':
+
+                if self._get_name() == 'BloomForCausalLM':
+                    for layer in self.transformer.h:
+                        for n, m in layer.mlp.named_modules():
+                            if 'dense_h_to_4h' in n and hasattr(m, 'lora_A'):
+                                logger.info(f'added our hyperparameters to {n}')
+                                m.embedding_tensor = inputs_embeds
+                                m.embedding_lambda = model_kwargs['embedding_lambda']
+                if self._get_name() == 'GPTJForCausalLM':
+                    for layer in self.transformer.h:
+                        for n, m in layer.mlp.named_modules():
+                            if 'dense_h_to_4h' in n and hasattr(m, 'lora_A'):
+                                logger.info(f'added our hyperparameters to {n}')
+                                m.embedding_tensor = inputs_embeds
+                                m.embedding_lambda = model_kwargs['embedding_lambda']
+                if self.model._get_name() == 'LlamaModel':  # TODO: test model.base_model.model._get_name()
+                    for layer in self.model.layers:
+                        for n, m in layer.mlp.named_modules():
+                            if 'up_proj' in n and hasattr(m, 'lora_A'):
+                                logger.info(f'added our hyperparameters to {n}')
+                                m.embedding_tensor = inputs_embeds
+                                m.embedding_lambda = model_kwargs['embedding_lambda']
+
+            if model_kwargs['adapter'] == 'Bottleneck':
+                    if self._get_name() == 'BloomForCausalLM':
+                        for layer in self.transformer.h:
+                            logger.info(f'added our hyperparameters to mlp')
+                            layer.mlp.embedding_tensor = inputs_embeds
+                            layer.mlp.embedding_lambda = model_kwargs['embedding_lambda']
+                    if self.model._get_name() == 'LlamaModel':
+                        for layer in self.model.layers:
+                            for n, m in layer.mlp.named_modules():
+                                if 'gate_proj' in n and hasattr(m, 'adapter_down'):
+                                    logger.info(f'added our hyperparameters to {n}')
+                                    m.embedding_tensor = inputs_embeds
+                                    m.embedding_lambda = model_kwargs['embedding_lambda']
+                                if 'up_proj' in n and hasattr(m, 'adapter_down'):
+                                    logger.info(f'added our hyperparameters to {n}')
+                                    m.embedding_tensor = inputs_embeds
+                                    m.embedding_lambda = model_kwargs['embedding_lambda']
             # forward pass to get next token
             outputs = self(
                 **model_inputs,
@@ -2796,7 +2854,43 @@ class GenerationMixin:
 
             # prepare model inputs
             model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
+            inputs_embeds = self.get_embedding_tensor(model_inputs['input_ids'])
+            model_inputs['input_ids'] = None
+            model_inputs['inputs_embeds'] = inputs_embeds
+            if model_kwargs['adapter'] == 'LoRA':
 
+                if self.model._get_name() == 'BloomForCausalLM':
+                    for layer in self.transformer.h:
+                        for n, m in layer.mlp.named_modules():
+                            if 'dense_h_to_4h' in n and hasattr(m, 'lora_A'):
+                                logger.info(f'added our hyperparameters to {n}')
+                                m.embedding_tensor = inputs_embeds
+                                m.embedding_lambda = model_kwargs['embedding_lambda']
+                if self.model._get_name() == 'LlamaModel':  # TODO: test model.base_model.model._get_name()
+                    for layer in self.model.layers:
+                        for n, m in layer.mlp.named_modules():
+                            if 'up_proj' in n and hasattr(m, 'lora_A'):
+                                logger.info(f'added our hyperparameters to {n}')
+                                m.embedding_tensor = inputs_embeds
+                                m.embedding_lambda = model_kwargs['embedding_lambda']
+
+            if model_kwargs['adapter'] == 'Bottleneck':
+                if self._get_name() == 'BloomForCausalLM':
+                    for layer in self.transformer.h:
+                        logger.info(f'added our hyperparameters to mlp')
+                        layer.mlp.embedding_tensor = inputs_embeds
+                        layer.mlp.embedding_lambda = model_kwargs['embedding_lambda']
+                if self.model._get_name() == 'LlamaModel':
+                    for layer in self.model.layers:
+                        for n, m in layer.mlp.named_modules():
+                            if 'gate_proj' in n and hasattr(m, 'adapter_down'):
+                                logger.info(f'added our hyperparameters to {n}')
+                                m.embedding_tensor = inputs_embeds
+                                m.embedding_lambda = model_kwargs['embedding_lambda']
+                            if 'up_proj' in n and hasattr(m, 'adapter_down'):
+                                logger.info(f'added our hyperparameters to {n}')
+                                m.embedding_tensor = inputs_embeds
+                                m.embedding_lambda = model_kwargs['embedding_lambda']
             # forward pass to get next token
             outputs = self(
                 **model_inputs,
@@ -3088,6 +3182,50 @@ class GenerationMixin:
 
             model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
 
+            inputs_embeds = self.get_embedding_tensor(model_inputs['input_ids'])
+            model_inputs['input_ids'] = None
+            model_inputs['inputs_embeds'] = inputs_embeds
+            if model_kwargs['adapter'] == 'LoRA':
+                if self._get_name() == 'BloomForCausalLM':
+                    for layer in self.transformer.h:
+                        for n, m in layer.mlp.named_modules():
+                            if 'dense_h_to_4h' in n and hasattr(m, 'lora_A'):
+                                logger.info(f'added our hyperparameters to {n}')
+                                m.embedding_tensor = inputs_embeds
+                                m.embedding_lambda = model_kwargs['embedding_lambda']
+                elif self._get_name() == 'GPTJForCausalLM':
+                    for layer in self.transformer.h:
+                        for n, m in layer.mlp.named_modules():
+                            if 'fc_in' in n and hasattr(m, 'lora_A'):
+                                logger.info(f'added our hyperparameters to {n}')
+                                m.embedding_tensor = inputs_embeds
+                                m.embedding_lambda = model_kwargs['embedding_lambda']
+                else:  # TODO: test model.base_model.model._get_name()
+                    for layer in self.model.layers:
+                        for n, m in layer.mlp.named_modules():
+                            if 'up_proj' in n and hasattr(m, 'lora_A'):
+                                logger.info(f'added our hyperparameters to {n}')
+                                m.embedding_tensor = inputs_embeds
+                                m.embedding_lambda = model_kwargs['embedding_lambda']
+
+            if model_kwargs['adapter'] == 'Bottleneck':
+                if self._get_name() == 'BloomForCausalLM' or self._get_name() == 'GPTJForCausalLM':
+                    for layer in self.transformer.h:
+                        logger.info(f'added our hyperparameters to mlp')
+                        layer.mlp.embedding_tensor = inputs_embeds
+                        layer.mlp.embedding_lambda = model_kwargs['embedding_lambda']
+
+                else:
+                    for layer in self.model.layers:
+                        for n, m in layer.mlp.named_modules():
+                            if 'gate_proj' in n and hasattr(m, 'adapter_down'):
+                                logger.info(f'added our hyperparameters to {n}')
+                                m.embedding_tensor = inputs_embeds
+                                m.embedding_lambda = model_kwargs['embedding_lambda']
+                            if 'up_proj' in n and hasattr(m, 'adapter_down'):
+                                logger.info(f'added our hyperparameters to {n}')
+                                m.embedding_tensor = inputs_embeds
+                                m.embedding_lambda = model_kwargs['embedding_lambda']
             outputs = self(
                 **model_inputs,
                 return_dict=True,
@@ -3099,15 +3237,15 @@ class GenerationMixin:
                 cur_len = cur_len + 1
                 continue  # don't waste resources running the code we don't need
 
-            next_token_logits = outputs.logits[:, -1, :]
+            next_token_logits = outputs.logits[:, -1, :] #[4, 80, 32000],[4, 32000] 最后一个token
             next_token_scores = nn.functional.log_softmax(
                 next_token_logits, dim=-1
-            )  # (batch_size * num_beams, vocab_size)
+            )  # (batch_size * num_beams, vocab_size) #[4, 32000]
 
-            next_token_scores_processed = logits_processor(input_ids, next_token_scores)
+            next_token_scores_processed = logits_processor(input_ids, next_token_scores) #[4, 32000]
             next_token_scores = next_token_scores_processed + beam_scores[:, None].expand_as(
                 next_token_scores_processed
-            )
+            )#[4, 32000]
 
             # Store scores, attentions and hidden_states when required
             if return_dict_in_generate:
@@ -3129,20 +3267,20 @@ class GenerationMixin:
 
             # reshape for beam search
             vocab_size = next_token_scores.shape[-1]
-            next_token_scores = next_token_scores.view(batch_size, num_beams * vocab_size)
+            next_token_scores = next_token_scores.view(batch_size, num_beams * vocab_size) #[1, 128000]
 
             # Sample 1 + len(eos_token_id) next tokens for each beam so we have at least 1 non eos token per beam.
             n_eos_tokens = len(eos_token_id) if eos_token_id else 0
             next_token_scores, next_tokens = torch.topk(
                 next_token_scores, max(2, 1 + n_eos_tokens) * num_beams, dim=1, largest=True, sorted=True
-            )
+            ) #next_token_scores [1,8], next_tokens [1,8]indices
 
             next_indices = torch.div(next_tokens, vocab_size, rounding_mode="floor")
             next_tokens = next_tokens % vocab_size
 
             # stateless
             beam_outputs = beam_scorer.process(
-                input_ids,
+                input_ids, #[num_beam, seq_len]
                 next_token_scores,
                 next_tokens,
                 next_indices,
@@ -3413,7 +3551,9 @@ class GenerationMixin:
                     break
 
             model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
-
+            inputs_embeds = self.get_embedding_tensor(model_inputs['input_ids'])
+            model_inputs['input_ids'] = None
+            model_inputs['inputs_embeds'] = inputs_embeds
             outputs = self(
                 **model_inputs,
                 return_dict=True,
@@ -3755,6 +3895,9 @@ class GenerationMixin:
 
             # do one decoder step on all beams of all sentences in batch
             model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
+            inputs_embeds = self.get_embedding_tensor(model_inputs['input_ids'])
+            model_inputs['input_ids'] = None
+            model_inputs['inputs_embeds'] = inputs_embeds
             outputs = self(
                 **model_inputs,
                 return_dict=True,
@@ -4129,7 +4272,9 @@ class GenerationMixin:
                     break
 
             model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
-
+            inputs_embeds = self.get_embedding_tensor(model_inputs['input_ids'])
+            model_inputs['input_ids'] = None
+            model_inputs['inputs_embeds'] = inputs_embeds
             outputs = self(
                 **model_inputs,
                 return_dict=True,
@@ -4528,7 +4673,9 @@ class GenerationMixin:
             candidate_kwargs = self._extend_token_type_ids(candidate_kwargs, candidate_input_ids.shape[1])
 
             model_inputs = self.prepare_inputs_for_generation(candidate_input_ids, **candidate_kwargs)
-
+            inputs_embeds = self.get_embedding_tensor(model_inputs['input_ids'])
+            model_inputs['input_ids'] = None
+            model_inputs['inputs_embeds'] = inputs_embeds
             # 2.2. Run a forward pass on the candidate sequence
             outputs = self(
                 **model_inputs,

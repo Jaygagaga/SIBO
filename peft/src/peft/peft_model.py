@@ -86,6 +86,7 @@ class PeftModel(PushToHubMixin, torch.nn.Module):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.base_model_torch_dtype = getattr(model, "dtype", None)
 
+
     def save_pretrained(self, save_directory, **kwargs):
         r"""
         Args:
@@ -528,7 +529,10 @@ class PeftModelForCausalLM(PeftModel):
         output_hidden_states=None,
         return_dict=None,
         **kwargs,
+
     ):
+        # inputs_embeds = self.base_model.get_em(input_ids=input_ids)
+
         if not isinstance(self.peft_config, PromptLearningConfig):
             return self.base_model(
                 input_ids=input_ids,
