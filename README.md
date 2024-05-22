@@ -19,6 +19,7 @@ limitations under the License.
     <p>SIBO: A Simple Booster for Parameter-Efficient Fine-Tuning </p>
 </h3>
 We provide the implementation of SIBO model, which is the source code for the ACL 2024 paper
+
 "SIBO: A Simple Booster for Parameter-Efficient Fine-Tuning". 
 
 Supported Adapters:
