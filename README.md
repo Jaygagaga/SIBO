@@ -20,6 +20,7 @@ limitations under the License.
 </h3>
 We provide the implementation of SIBO model, which is the source code for the ACL 2024 paper
 "SIBO: A Simple Booster for Parameter-Efficient Fine-Tuning". 
+
 Supported Adapters:
 
 1. LoRA: [LORA: LOW-RANK ADAPTATION OF LARGE LANGUAGE MODELS](https://arxiv.org/pdf/2106.09685.pdf)
@@ -109,15 +110,6 @@ CUDA_VISIBLE_DEVICES=0 python evaluate.py
     --weights_path ./checkpoints/gpt-j-6b_bottleneck_att/math_10k/16_3e-4_3_01/ \  #specify the path to finetuned weights
     --embedding_lambda 0.1  #specify embedding lambda
 ```
-
-<!-- ## Resource Consumption
-
-There is a table of resouce needed for different adapters, which contains Trainable Parameters, GPU RAM Usage, and Fine-tuning Time on the Arithmetic Reasoning dataset `math_10k.json`
-
-Hyper-parameter setting: num_epochs=3, lora_r=8, lora_alpha=16, bottleneck_size=256
-
-Models: LLaMA-13B, LLaMA-7B, BLOOM-6.7B, GPT-j-6B
-Dataset: 3.2K math word problems
 
 ## cite
         @article{wen2024sibo,
