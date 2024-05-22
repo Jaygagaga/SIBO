@@ -48,33 +48,10 @@ Both `finetune.py` and `generate.py` use `--base_model` flag as shown further be
 
 ## Datasets
 Datsets for training and evaluations can be downloaded from https://github.com/AGI-Edgerunners/LLM-Adapters. 
+We used `math_10k.json` and `commonsense_170k.json` under ft-training_set folder in LLM-Adapters repository. Datasets can be replaced in training scripts.  
 
 ## Training(finetune.py)
 
-This file contains some code related to prompt construction and tokenization.In this file, specify different adapters and different sets of data, so that different models can be trained. 
-
-Example usage for multiple GPUs:
-
-```bash
-WORLD_SIZE=2 CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 --master_port=3192 finetune.py \
-  --base_model EleutherAI/gpt-j-6b \
-  --data_path ./ft-training_set/math_10k.json \
-  --batch_size 16 \
-  --micro_batch_size 4 \
-  --num_epochs 3 \
-  --learning_rate 3e-4 \
-  --cutoff_len 256 \
-  --val_set_size 120 \
-  --eval_step 80 \
-  --save_step 80 \
-  --adapter_name lora \
-  --embedding_lambda 0.1 \
-  --ffn True \
-  --lora_r 32 \
-  --lora_alpha 64 \
-  --target_modules ["q_proj","k_proj","v_proj","fc_in","fc_out"] \
-  --output_dir ./checkpoints/gpt-j-6b_lora_att/math_10k/16_3e-4_3_01/
-```
 
 The `math_10k.json` data is collected with the training sets of GSM8K, MAWPS, and AQuA(1000 examples). `EleutherAI/gpt-j-6b` is a base model, LLaMa-7B. Add `lora` adapter to this model.
 
@@ -101,16 +78,11 @@ CUDA_VISIBLE_DEVICES=0 python finetune.py \
   --output_dir ./checkpoints/gpt-j-6b_lora_att/math_10k/16_3e-4_3_01/
 ```
 
-Moreover, you can use `--use_gradient_checkpointing` to save more GPU memory, but it will increase the training time.
-
 To use the AdapterH, just add the following arguments:
 
 ```bash
 --adapter_name bottleneck # use the bottleneck adapter, refers to AdapterH in the result table
 ```
-
-
-Note that, In order to facilitate INT8 training of large models with parallel adapters, we have adopted a technique whereby the parallel adapter layers are incorporated into multi-head attention layers and MLP layers, in parallel with Linear layers. It is different from [Hu et al. (2021)](https://arxiv.org/pdf/2106.09685.pdf). 
 
 ## Inference (generate.py)
 
