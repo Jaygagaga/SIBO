@@ -47,6 +47,7 @@ Both `finetune.py` and `generate.py` use `--base_model` flag as shown further be
 3. If bitsandbytes doesn't work, [install it from source.](https://github.com/TimDettmers/bitsandbytes/blob/main/compile_from_source.md) Windows users can follow [these instructions](https://github.com/tloen/alpaca-lora/issues/17).
 
 ## Datasets
+Datsets for training and evaluations can be downloaded from https://github.com/AGI-Edgerunners/LLM-Adapters. 
 
 ## Training(finetune.py)
 
