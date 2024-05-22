@@ -86,7 +86,7 @@ To use the AdapterH, just add the following arguments:
 
 ## Inference (generate.py)
 
-This file reads the foundation model from the Hugging Face model hub and finetuned model weights from checkpoints directory, e.g.`'./checkpoints/gpt-j-6b_bottleneck_att/math_10k/16_3e-4_3_01'` , and runs a Gradio interface for inference on a specified input. Users should treat this as example code for the use of the model, and modify it as needed.
+This file reads the foundation model from the Hugging Face model hub and finetuned model weights from 'checkpoints' directory, e.g.`'./checkpoints/gpt-j-6b_bottleneck_att/math_10k/16_3e-4_3_01'` , and runs a Gradio interface for inference on a specified input. Users should treat this as example code for the use of the model, and modify it as needed.
 Example usage:
 
 ```bash
