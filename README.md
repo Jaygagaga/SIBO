@@ -111,12 +111,12 @@ CUDA_VISIBLE_DEVICES=0 python evaluate.py
     --embedding_lambda 0.1  #specify embedding lambda
 ```
 
-## cite
-        @article{wen2024sibo,
-          title={SIBO: A Simple Booster for Parameter-Efficient Fine-Tuning},
-          author={Wen, Zhihao and Zhang, Jie and Fang, Yuan},
-          journal={arXiv preprint arXiv:2402.11896},
-          year={2024}
-        }
+## Cite
+    @article{wen2024sibo,
+      title={SIBO: A Simple Booster for Parameter-Efficient Fine-Tuning},
+      author={Wen, Zhihao and Zhang, Jie and Fang, Yuan},
+      journal={arXiv preprint arXiv:2402.11896},
+      year={2024}
+    }
 
 
