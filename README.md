@@ -18,7 +18,8 @@ limitations under the License.
 <h3 align="center">
     <p>SIBO: A Simple Booster for Parameter-Efficient Fine-Tuning </p>
 </h3>
-
+We provide the implementation of SIBO model, which is the source code for the ACL 2024 paper
+"SIBO: A Simple Booster for Parameter-Efficient Fine-Tuning". 
 Supported Adapters:
 
 1. LoRA: [LORA: LOW-RANK ADAPTATION OF LARGE LANGUAGE MODELS](https://arxiv.org/pdf/2106.09685.pdf)
@@ -118,13 +119,12 @@ Hyper-parameter setting: num_epochs=3, lora_r=8, lora_alpha=16, bottleneck_size=
 Models: LLaMA-13B, LLaMA-7B, BLOOM-6.7B, GPT-j-6B
 Dataset: 3.2K math word problems
 
-Hardware: 2*3090 GPUs
-
-| Model                 | Trainable Parameters | GPU RAM Usage | Fine-tuning Time |
-|-----------------------|----------------------|---------------|------------------|
-| LLaMA-7B-LoRA         | 4.2M                 | 18GB          |     4h           | 
-| LLaMA-7B-AdapterH     | 200M                 | 22GB          |     4h           | 
-| LLaMA-7B-AdapterP     | 200M                 | 22GB          |     4h           | 
-| LLaMA-7B-Parallel     | 200M                 | 22GB          |     4h           |  -->
+## cite
+        @article{wen2024sibo,
+          title={SIBO: A Simple Booster for Parameter-Efficient Fine-Tuning},
+          author={Wen, Zhihao and Zhang, Jie and Fang, Yuan},
+          journal={arXiv preprint arXiv:2402.11896},
+          year={2024}
+        }
 
 
