@@ -53,7 +53,7 @@ Both `finetune.py` and `generate.py` use `--base_model` flag as shown further be
 
 ## Datasets
 Datsets for training and evaluations can be downloaded from https://github.com/AGI-Edgerunners/LLM-Adapters. 
-We used `math_10k.json` and `commonsense_170k.json` under ft-training_set folder in LLM-Adapters repository. Datasets can be replaced in training scripts.  
+We used `math_10k.json` and `commonsense_170k.json` under `ft-training_set` folder in LLM-Adapters repository for finetuning and evaluations. Datasets can be replaced in training scripts.  
 
 ## Training(finetune.py)
 
