@@ -23,6 +23,9 @@ We provide the implementation of SIBO model, which is the source code for the AC
 "SIBO: A Simple Booster for Parameter-Efficient Fine-Tuning". 
 (https://arxiv.org/pdf/2402.11896)
 
+In this paper, we present SIBO, which is a SImple BOoster to enhance PEFT, by injecting an initial residual.SIBO is straightforward and readily extensible to a range of state-of-the-art PEFT techniques to alleviate over-smoothing and enhance performance. Integrating an initial residual from the initial embedding guarantees that the final representation of each token preserves at least a λ portion of the information from the input layer.
+
+![framework-cropped_00](https://github.com/Jaygagaga/SIBO/assets/118867596/aac24efa-b73d-4250-95e9-c6e3327d93c2)
 
 Supported Adapters:
 
@@ -113,6 +116,11 @@ CUDA_VISIBLE_DEVICES=0 python evaluate.py
     --weights_path ./checkpoints/gpt-j-6b_bottleneck_att/math_10k/16_3e-4_3_01/ \  #specify the path to finetuned weights
     --embedding_lambda 0.1  #specify embedding lambda
 ```
+Performance of LLMs with different PEFT methods on arithmetic reasoning, using GPT-3.5 with zero-shot CoT as a reference point
+![table1](https://github.com/Jaygagaga/SIBO/assets/118867596/60f26394-6f68-4f07-a9e2-ce2b1611c4a6)
+
+Performance of GPT-J (6B) with different PEFT methods on commonsense reasoning.
+![table2](https://github.com/Jaygagaga/SIBO/assets/118867596/c9bc226e-6878-4b90-b523-23946aa77e26)
 
 ## Cite
     @article{wen2024sibo,
