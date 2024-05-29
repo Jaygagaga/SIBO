@@ -51,6 +51,7 @@ export BASE_MODEL=EleutherAI/gpt-j-6b
 ```
 
 Both `finetune.py` and `generate.py` use `--base_model` flag as shown further below.
+You need to unzip `transformer.zip`. Main implementations are located in `peft` folder.
 
 3. If bitsandbytes doesn't work, [install it from source.](https://github.com/TimDettmers/bitsandbytes/blob/main/compile_from_source.md) Windows users can follow [these instructions](https://github.com/tloen/alpaca-lora/issues/17).
 
